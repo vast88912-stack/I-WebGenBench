@@ -227,14 +227,6 @@ The released `GeneratePrompt.py` follows the prompt structure in the paper appen
 
 The full paper also describes human expert review and filtering of the benchmark specifications. That curation stage is not reconstructed by this script. If you have the finalized benchmark prompts, use them directly for evaluation.
 
-## Paper
-
-The local PDF is included at:
-
-```text
-paper/2606.00750v1.pdf
-```
-
 ## Citation
 
 ```bibtex
