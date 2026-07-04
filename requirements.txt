@@ -1,0 +1,17 @@
+# Core LLM APIs
+google-genai>=1.64.0
+openai>=1.61.1
+python-dotenv>=1.0.1
+
+# Generation utilities
+tqdm>=4.67.3
+
+# Browser-based interaction probing
+playwright>=1.50.0
+
+# Evaluation utilities
+numpy>=1.26.0
+pillow>=10.0.0
+rich>=13.7.0
+pydantic>=2.6.0
+tenacity>=8.2.0

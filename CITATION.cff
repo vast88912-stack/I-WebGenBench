@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this repository, please cite the paper."
+title: "I-WebGenBench: Evaluating Interactivity in LLM-Generated Scientific Web Applications"
+authors:
+  - family-names: Dai
+    given-names: Dasen
+  - family-names: Wu
+    given-names: Biao
+  - family-names: Fang
+    given-names: Meng
+  - family-names: Li
+    given-names: Shuoqi
+  - family-names: Wang
+    given-names: Wenhao
+year: 2026
+doi: 10.48550/arXiv.2606.00750
+url: "https://arxiv.org/abs/2606.00750"
+repository-code: "https://github.com/DAIDASEN/I-WebGenBench"
+license: MIT
