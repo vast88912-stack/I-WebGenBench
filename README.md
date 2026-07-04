@@ -1,21 +1,100 @@
 # I-WebGenBench
 
-Minimal code release for **I-WebGenBench: Evaluating Interactivity in LLM-Generated Scientific Web Applications**.
+**Evaluating Interactivity in LLM-Generated Scientific Web Applications**
 
-Paper: [paper/2606.00750v1.pdf](paper/2606.00750v1.pdf) | [arXiv](https://arxiv.org/abs/2606.00750)
+[![Paper](https://img.shields.io/badge/arXiv-2606.00750-b31b1b.svg)](https://arxiv.org/abs/2606.00750)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](requirements.txt)
 
-## What Is Included
+I-WebGenBench evaluates whether LLMs can generate **interactive scientific web applications** from paper-derived specifications. The benchmark explicitly separates apps that merely compile from apps that actually respond to user input with meaningful event-driven behavior.
 
-This repository keeps only the basic pipeline needed to reproduce the evaluation flow:
+![I-WebGenBench evaluation pipeline](assets/evaluation_pipeline.png)
 
-- generate prompt specifications from PDFs: `GeneratePrompt.py`
-- generate React/TypeScript apps from prompt specifications: `generate_apps.py`
-- build generated Vite apps: `tools/build_all_tsx.py`
-- probe generated apps with Playwright: `benchmark/runner/run_module_probe*.py`
-- aggregate BSR/IR and rule scores: `benchmark/evaluation/codegen_scorer.py`
-- optionally run an OpenAI-based visual judge: `benchmark/evaluation/evaluate_codegen_llm.py`
+## What This Release Contains
 
-Large generated outputs, datasets, API keys, local environments, and benchmark result folders are intentionally excluded.
+This repository keeps the runnable evaluation core:
+
+| Component | File |
+| --- | --- |
+| PDF to task specification | `GeneratePrompt.py` |
+| Task specification to React/TypeScript app | `generate_apps.py` |
+| Batch Vite build | `tools/build_all_tsx.py` |
+| Playwright Interaction Probe | `benchmark/runner/run_module_probe.py` |
+| Batch probing | `benchmark/runner/run_module_probe_suite.py` |
+| VLM judge | `benchmark/evaluation/evaluate_codegen_llm.py` |
+| Score aggregation | `benchmark/evaluation/codegen_scorer.py` |
+
+Large generated apps, benchmark result folders, local API keys, and runtime caches are intentionally excluded.
+
+## Benchmark At A Glance
+
+The arXiv v1 paper describes **201 paper-derived specifications** across five scientific domains.
+
+![Taxonomy of paper-derived specifications](assets/taxonomy.png)
+
+| Domain | Count | Example subareas |
+| --- | ---: | --- |
+| Biology | 41 | Molecular biology, biomaterials, therapeutics |
+| Chemistry | 41 | Plasma CH4 conversion, plasma CO2 conversion, catalysis |
+| Computer Science | 45 | LLMs, fairness, vision, RL/planning |
+| Economics | 40 | Causal inference, macro/finance, market design |
+| HCI | 34 | Education, decision making, interaction design |
+
+## Evaluation Protocol
+
+I-WebGenBench combines deterministic browser probing with VLM-based qualitative scoring.
+
+### 1. Build Success Rate
+
+An app is build-successful if the generated Vite project produces:
+
+```text
+dist/index.html
+```
+
+### 2. Interaction Probe
+
+For every build-successful app, the probe:
+
+1. loads the rendered page in Chromium through Playwright;
+2. enumerates visible interactive elements such as buttons, sliders, text inputs, and select menus;
+3. records HTML semantics and bounding boxes;
+4. maps each element to a canonical action, such as click, midpoint slider update, text input, or select change;
+5. uses `MutationObserver` over `childList`, `subtree`, and `attributes` to detect DOM mutations after each action.
+
+Interaction Rate (IR) is computed as:
+
+```text
+IR = pages with at least one DOM-mutating action / all pages
+```
+
+### 3. 100-Point Score
+
+| Dimension | Points | Source |
+| --- | ---: | --- |
+| Visual Aesthetics | 30 | VLM judge |
+| Interaction Fidelity | 40 | VLM judge over probe screenshots/logs |
+| Topic & Semantic Alignment | 15 | VLM judge against the task specification |
+| Clarity & Educational Value | 10 | VLM judge |
+| Rule & Stability | 5 | deterministic probe |
+
+![BSR vs IR](assets/bsr_vs_ir.png)
+
+![Interaction probe details](assets/probe_details.png)
+
+## Main Result Snapshot
+
+From the arXiv v1 paper:
+
+| Rank | Model | Avg score |
+| ---: | --- | ---: |
+| 1 | GPT-5.4 | 79.4 |
+| 2 | PaperVoyager | 65.9 |
+| 3 | Gemini-3.1 | 53.8 |
+| 4 | Kimi-K2.5 | 48.9 |
+| 5 | Qwen-3.5 | 47.5 |
+
+The main empirical finding is the **compilation-interaction gap**: many models achieve high build success, but substantially lower interaction rates.
 
 ## Install
 
@@ -24,21 +103,19 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
-## Environment
-
-Copy `.env.example` to `.env` and fill the keys you need.
+Copy the environment template and fill in the keys you need:
 
 ```bash
 cp .env.example .env
 ```
 
-For prompt generation, set:
+For prompt generation:
 
 ```bash
 GEMINI_API_KEY=...
 ```
 
-For app generation, set:
+For code generation:
 
 ```bash
 CODEGEN_PROVIDER=openai_compatible
@@ -47,7 +124,7 @@ CODEGEN_BASE_URL=...
 CODEGEN_MODEL=...
 ```
 
-For optional OpenAI judge evaluation, set:
+For optional VLM judging:
 
 ```bash
 OPENAI_API_KEY=...
@@ -55,7 +132,7 @@ OPENAI_API_KEY=...
 
 ## Generate Apps
 
-Generate prompt specifications from paper PDFs:
+Generate paper-derived task specifications:
 
 ```bash
 python GeneratePrompt.py \
@@ -64,7 +141,7 @@ python GeneratePrompt.py \
   --workers 4
 ```
 
-Generate apps from prompt specifications:
+Generate React/TypeScript apps:
 
 ```bash
 python generate_apps.py \
@@ -73,7 +150,7 @@ python generate_apps.py \
   --workers 4
 ```
 
-Build generated apps:
+Build generated Vite projects:
 
 ```bash
 python tools/build_all_tsx.py --path outputs/tsx --install
@@ -81,7 +158,13 @@ python tools/build_all_tsx.py --path outputs/tsx --install
 
 ## Prepare `websites.json`
 
-The evaluator expects a JSON file listing built app entry points. Example:
+Serve the repository root:
+
+```bash
+python -m http.server 8000
+```
+
+Create a website list such as:
 
 ```json
 {
@@ -94,21 +177,7 @@ The evaluator expects a JSON file listing built app entry points. Example:
 }
 ```
 
-## Evaluation Protocol
-
-The evaluation follows the protocol described in the paper:
-
-1. **Build Success Rate (BSR)**: a generated app counts as build-successful if its Vite build produces `dist/index.html`.
-2. **Interaction Probe / Interaction Rate (IR)**: for each build-successful app, Playwright loads the rendered page, enumerates visible interactive elements such as buttons, sliders, text inputs, and select menus, maps each element to a canonical semantic action, and uses `MutationObserver` to detect DOM changes over `childList`, `subtree`, and `attributes`. A page is counted as interactive if at least one probed action triggers a DOM mutation.
-3. **VLM scoring**: optional judge over screenshots and probe logs, with four qualitative dimensions: Visual Aesthetics (30), Interaction Fidelity (40), Topic/Semantic Alignment (15), and Clarity/Educational Value (10).
-4. **Rule/Stability score**: deterministic 5-point score from the probe, penalizing fatal rendering failures and runtime/probe errors.
-5. **Final score**: `Visual 30 + Interaction 40 + Topic 15 + Clarity 10 + Rule 5`.
-
-Start a static server from the repository root before probing:
-
-```bash
-python -m http.server 8000
-```
+## Run Evaluation
 
 Run the deterministic Interaction Probe:
 
@@ -145,25 +214,26 @@ python tools/run_full_codegen_eval.py \
 
 Add `--skip_judge` if you only want deterministic BSR/IR/Rule scoring.
 
-## Metrics
+## Prompt Pipeline
 
-- **BSR**: fraction of tasks whose generated app has a built `dist/index.html`.
-- **IR**: fraction of tasks where at least one semantically mapped user action triggers a DOM mutation observed by `MutationObserver`.
-- **Rule score**: deterministic 5-point page health score based on blank-page checks, color diversity, and runtime/probe errors.
+The paper uses a PDF-to-specification stage followed by code generation.
 
-## Prompt Alignment With The Paper
+The released `GeneratePrompt.py` follows the prompt structure in the paper appendix:
 
-The paper describes a benchmark construction process where paper-derived specifications are curated from PDFs, reviewed by domain experts, and standardized as natural-language task prompts with interaction requirements.
+- deep paper reading;
+- 3-10 core interactive points;
+- five modules: Hero/Abstract, Architecture/Methodology, Core Simulation/Experiment, Results/Analysis, Conclusion;
+- structured natural-language specification focused on UI components, state variables, and visual logic.
 
-The current `GeneratePrompt.py` is a practical release script for producing such specifications, but it is not an exact reconstruction of the full paper annotation pipeline:
+The full paper also describes human expert review and filtering of the benchmark specifications. That curation stage is not reconstructed by this script. If you have the finalized benchmark prompts, use them directly for evaluation.
 
-- it uses Gemini to generate specifications directly from PDFs;
-- it asks for a fixed educational React/TypeScript app format with a `Module Plan`;
-- it is more prescriptive about UI structure, design style, and implementation constraints than the paper's high-level description;
-- it does not include the paper's human expert review and filtering stage;
-- it should be treated as an approximation for reproducing prompt generation, not as the final curated benchmark prompt set.
+## Paper
 
-If you have the finalized benchmark prompts used in the paper, use those prompts directly for evaluation instead of regenerating them with `GeneratePrompt.py`.
+The local PDF is included at:
+
+```text
+paper/2606.00750v1.pdf
+```
 
 ## Citation
 
